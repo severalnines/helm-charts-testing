@@ -3,7 +3,7 @@ name: Release Charts Dev
 on:
   push:
     paths:
-      - "**/Chart.yaml"
+      - "charts/kuber-agent/Chart.yaml"
     branches:
       - develop
   workflow_dispatch:
