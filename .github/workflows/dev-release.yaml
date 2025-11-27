@@ -93,7 +93,7 @@ jobs:
             --release-name-template "{{ .Name }}-{{ .Version }}-dev"
             
 
-      - name: Update gh-pages/dev/index.yaml (no packages on gh-pages)
+      - name: Update gh-pages/dev/index.yaml
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         run: |
