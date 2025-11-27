@@ -1,0 +1,65 @@
+name: Release Charts Dev GHCR
+
+on:
+  push:
+    branches: [ develop ]
+    paths:
+      - "charts/kuber-agent/Chart.yaml"
+      # - "charts/**/Chart.yaml"   # <-- uncomment to trigger on any chart change
+  workflow_dispatch:
+
+jobs:
+  push-oci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Package chart(s)
+        run: |
+          set -euo pipefail
+          mkdir -p out
+
+          package_one() {
+            local chart_dir="$1"
+            local base_ver
+            base_ver="$(awk '/^version:/ {print $2}' "${chart_dir}/Chart.yaml")"
+            local dev_ver="${base_ver}-dev.${GITHUB_SHA::7}"
+
+            helm package "${chart_dir}" \
+              --version "${dev_ver}" \
+              --app-version "${dev_ver}" \
+              --destination out
+          }
+
+          # --- single chart ---
+          package_one "charts/kuber-agent"
+
+          # --- all charts (uncomment) ---
+          # for d in charts/*; do
+          #   [ -f "$d/Chart.yaml" ] && package_one "$d"
+          # done
+
+      - name: Login to GHCR
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+
+      - name: Push packaged chart(s) to GHCR
+        run: |
+          set -euo pipefail
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+
+          # One OCI repo for dev charts; chart name + version come from the .tgz metadata
+          for pkg in out/*.tgz; do
+            helm push "$pkg" "oci://ghcr.io/${OWNER}/${REPO}-dev"
+          done
