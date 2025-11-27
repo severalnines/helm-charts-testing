@@ -3,6 +3,7 @@ name: Release Charts Dev
 on:
   push:
     paths:
+      #   - "**/Chart.yaml"
       - "charts/kuber-agent/Chart.yaml"
     branches:
       - develop
@@ -21,6 +22,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+        
+      - name: Fetch gh-pages branch
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages || true
+          git show-ref --verify --quiet refs/remotes/origin/gh-pages || {
+            echo "gh-pages branch does not exist on origin. Create it once in this repo (fork) and re-run."
+            exit 1
+          }
 
       - name: Configure Git
         run: |
@@ -42,6 +54,7 @@ jobs:
           sudo mv cr /usr/local/bin/cr
           cr version
 
+      # Uncomment this to package all charts
       # - name: Package charts
       #   run: |
       #     set -euo pipefail
