@@ -5,6 +5,7 @@ on:
     branches: [ develop ]
     paths:
       - "charts/kuber-agent/Chart.yaml"
+      # - "charts/**/Chart.yaml"   # <-- uncomment to trigger on any chart change
   workflow_dispatch:
 
 jobs:
@@ -21,20 +22,30 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3
 
-      - name: Package chart with dev version
+      - name: Package chart(s)
         run: |
           set -euo pipefail
-          CHART_DIR="charts/kuber-agent"
-          BASE_VER="$(awk '/^version:/ {print $2}' "${CHART_DIR}/Chart.yaml")"
-          DEV_VER="${BASE_VER}-dev.${GITHUB_SHA::7}"
-
           mkdir -p out
-          helm package "${CHART_DIR}" \
-            --version "${DEV_VER}" \
-            --app-version "${DEV_VER}" \
-            --destination out
 
-          echo "DEV_VER=${DEV_VER}" >> "$GITHUB_ENV"
+          package_one() {
+            local chart_dir="$1"
+            local base_ver
+            base_ver="$(awk '/^version:/ {print $2}' "${chart_dir}/Chart.yaml")"
+            local dev_ver="${base_ver}-dev.${GITHUB_SHA::7}"
+
+            helm package "${chart_dir}" \
+              --version "${dev_ver}" \
+              --app-version "${dev_ver}" \
+              --destination out
+          }
+
+          # --- single chart ---
+          package_one "charts/kuber-agent"
+
+          # --- all charts (uncomment) ---
+          # for d in charts/*; do
+          #   [ -f "$d/Chart.yaml" ] && package_one "$d"
+          # done
 
       - name: Login to GHCR
         run: |
@@ -42,12 +53,13 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
             -u "${{ github.actor }}" --password-stdin
 
-      - name: Push chart to GHCR (OCI)
+      - name: Push packaged chart(s) to GHCR
         run: |
           set -euo pipefail
           OWNER="${{ github.repository_owner }}"
           REPO="${{ github.event.repository.name }}"
 
-          # IMPORTANT: Helm requires the ref be oci://.../<repo>, without chart name or tag
-          # Chart name and version/tag are inferred from the package metadata.
-          helm push out/*.tgz "oci://ghcr.io/${OWNER}/${REPO}-dev"
+          # One OCI repo for dev charts; chart name + version come from the .tgz metadata
+          for pkg in out/*.tgz; do
+            helm push "$pkg" "oci://ghcr.io/${OWNER}/${REPO}-dev"
+          done

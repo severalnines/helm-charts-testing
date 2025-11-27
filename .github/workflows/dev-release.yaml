@@ -92,6 +92,11 @@ jobs:
             --make-release-latest=false \
             --release-name-template "{{ .Name }}-{{ .Version }}-dev"
             
+      - name: Ensure .cr-index exists (fix for cr index)
+        run: |
+          set -euo pipefail
+          mkdir -p .cr-index
+
 
       - name: Update gh-pages/dev/index.yaml
         env:
@@ -105,6 +110,7 @@ jobs:
             --owner "$OWNER" \
             --git-repo "$REPO" \
             --pages-branch gh-pages \
+            --index-path .cr-index/index.yaml \
             --pages-index-path dev/index.yaml \
             --release-name-template "{{ .Name }}-{{ .Version }}-dev" \
             --push
